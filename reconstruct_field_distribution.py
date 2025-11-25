@@ -5,7 +5,7 @@ from scipy.optimize import lsq_linear
 import os
 
 # Параметры
-filename = r"test\FieldSweep 25.00K.txt"
+filename = r"test_data\FieldSweep 25.00K.txt"
 BL = 0.72525
 Bloc_min = 1e-6
 Bloc_max = 0.2
@@ -16,7 +16,7 @@ auto_lambda = True
 lambda_range = np.logspace(0, 10, 100)
 
 # Создаём папку для результатов
-output_dir = "final"
+output_dir = "final_data"
 os.makedirs(output_dir, exist_ok=True)
 
 # Загрузка данных
