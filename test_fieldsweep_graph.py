@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-folder_path = r"C:\Users\Владимир\Desktop\Diplom\test_data"
+folder_path = r"C:\Users\Владимир\Desktop\NMR_Diplom\test_data"
 
 
 txt_files = [f for f in os.listdir(folder_path) if f.endswith('.txt')]
@@ -51,28 +51,26 @@ plt.figure(figsize=(10, 6))
 cmap = plt.cm.turbo  
 colors = cmap(np.linspace(0, 1, len(data_list)))
 
-for (temp, x_vals, y_vals), color in zip(data_list, colors):
+offset_step = 0.2  # Настрой по вкусу: насколько сдвигать каждую кривую
+
+for i, ((temp, x_vals, y_vals), color) in enumerate(zip(data_list, colors)):
     y_max = np.max(np.abs(y_vals))
     if y_max != 0:
         y_vals = y_vals / y_max
 
-    plt.plot(x_vals, y_vals, label=f'{temp} K', color=color)
-    
-    sum_y = np.sum(y_vals)
-    if np.isclose(sum_y, 0):
-        continue
-    mean_x = np.sum(x_vals * y_vals) / sum_y
-    var_x = np.sum(y_vals * (x_vals - mean_x)**2) / sum_y
+    # Добавляем вертикальный сдвиг
+    y_shifted = y_vals + i * offset_step
 
-    mean_x_list.append(mean_x)
-    var_x_list.append(var_x)
+    plt.plot(x_vals, y_shifted, label=f'{temp} K', color=color)
 
 plt.xlabel('Поле (X)')
-plt.ylabel('Нормированный сигнал (Y)')
-plt.title('FieldSweep зависимости (нормированные функции)')
-plt.legend(title="Температура", loc='best')
+plt.ylabel('Нормированный сигнал + сдвиг')
+plt.title('FieldSweep зависимости (со сдвигом по вертикали)')
+plt.legend(title="Температура", loc='upper right')
 plt.grid(True)
 plt.tight_layout()
+plt.xlim(0.5, 0.9)
+plt.ylim(0, 6) 
 plt.show()
 
 #График <x> от T
