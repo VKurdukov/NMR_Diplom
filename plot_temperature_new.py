@@ -2,15 +2,21 @@ import os
 import re
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
+from pathlib import Path  # ✅ ИСПРАВЛЕНО: был plt, должно быть Path
 
+# Настройки шрифтов и LaTeX для корректного отображения формул
+plt.rcParams['mathtext.fontset'] = 'dejavusans'
+plt.rcParams['font.family'] = 'DejaVu Sans'
 
 # ============ КОНФИГУРАЦИЯ ============
 DATA_DIR = "test_data"  # Папка с данными
+T_N2 = 9.95  # K, верхний переход
+T_N1 = 8.17  # K, нижний переход
 
+# Параметры эксперимента для подписей
+EXPERIMENT_LABEL = r'ЯМР $\mathrm{LiCuFe_2(VO_4)_3}$ на ядрах ${}^7\mathrm{Li}$'
 
 # ============ ФУНКЦИИ ============
-
 
 def extract_temperature(filename: str):
     """Извлекает температуру из названия файла (например, FieldSweep 9.00K.txt → 9.00)"""
@@ -21,14 +27,10 @@ def extract_temperature(filename: str):
         print(f"Ошибка извлечения температуры: {e}")
         return None
 
-
-
 def read_data(filepath):
     """
     Чтение данных из файла FieldSweep.
     Автоматически определяет начало данных (после заголовка).
-    Ожидает колонки: Field, Integral, Fourier, MaxValue, RST, ...
-    Возвращает: (Field, Integral) как основные данные
     """
     data = []
     try:
@@ -62,16 +64,17 @@ def read_data(filepath):
     
     return np.array(data) if data else np.array([])
 
-
-
 def interactive_noise_selection(x_data, y_data, filename):
     """Интерактивный выбор границ сигнала для обрезки"""
     plt.figure(figsize=(12, 6))
     plt.plot(x_data, y_data, 'b-', linewidth=2, label='Данные')
-    plt.title(f"Выбор границ сигнала ({filename}):\n"
-              f"ЛКМ - левая граница | ПКМ - правая граница | Enter - подтвердить")
-    plt.xlabel('Field (T)')
-    plt.ylabel('Integral')
+    
+    plt.title(rf"Выбор границ сигнала ({filename}):\n"
+              r"ЛКМ — левая граница | ПКМ — правая граница | Enter — подтвердить",
+              fontsize=10)
+    
+    plt.xlabel(r'Поле $B$, Тл')
+    plt.ylabel(r'Нормированный сигнал (усл. ед.)')
     plt.grid(True, alpha=0.3)
     
     selected_points = []
@@ -100,7 +103,6 @@ def interactive_noise_selection(x_data, y_data, filename):
     if len(selected_points) >= 2:
         return sorted(selected_points[:2])
     else:
-        # Автоматическое определение пика: область где y > 10% от максимума
         print("⚠️  Границы не выбраны! Использую автоматические (10% от max).")
         threshold = np.max(y_data) * 0.1
         mask = y_data >= threshold
@@ -111,19 +113,13 @@ def interactive_noise_selection(x_data, y_data, filename):
             x_min, x_max = np.min(x_data), np.max(x_data)
             return [x_min + 0.2 * (x_max - x_min), x_min + 0.8 * (x_max - x_min)]
 
-
-
 def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
-    """
-    Оценивает погрешность дисперсии методом конечных разностей.
-    """
+    """Оценивает погрешность дисперсии методом конечных разностей."""
     weights = np.abs(y_values)
     if np.sum(weights) == 0:
         return 0
     
     mean_nom = np.average(x, weights=weights)
-    
-    # Определяем сдвиг
     delta = perturbation_fraction * np.max(np.abs(y_values))
     
     # Сдвиг вниз
@@ -141,11 +137,17 @@ def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
     mean_high = np.average(x, weights=weights_high)
     var_high = np.average((x - mean_high) ** 2, weights=weights_high)
     
-    # Ошибка дисперсии
     err_var = np.abs(var_high - var_low) / 2.0
     return err_var
 
-
+def calculate_std_error(var, err_var):
+    """Оценивает ошибку корня из дисперсии через метод переноса ошибок."""
+    if var <= 0:
+        return 0
+    std = np.sqrt(var)
+    if std == 0:
+        return 0
+    return abs(1 / (2 * std)) * err_var
 
 def calculate_stats(x_data, y_data, noise_var):
     """Расчет статистик с погрешностями"""
@@ -155,14 +157,12 @@ def calculate_stats(x_data, y_data, noise_var):
     if sum_weights == 0:
         return None
     
-    # Основные статистики
     max_value = np.max(y_data)
     max_index = np.argmax(y_data)
     max_x = x_data[max_index]
     mean_val = np.average(x_data, weights=weights)
     variance = np.average((x_data - mean_val) ** 2, weights=weights)
     
-    # Погрешности
     n = len(x_data)
     dx = np.mean(np.diff(x_data)) if len(x_data) > 1 else 0.01
     
@@ -171,21 +171,24 @@ def calculate_stats(x_data, y_data, noise_var):
     err_max_value = np.sqrt(noise_var) if noise_var > 0 else 0
     err_var = calculate_variance_error(x_data, y_data, perturbation_fraction=0.05)
     
+    std_dev = np.sqrt(variance) if variance > 0 else 0
+    err_std = calculate_std_error(variance, err_var)
+    
     stats = {
         'max_value': max_value,
         'max_field': max_x,
         'mean_field': mean_val,
         'variance': variance,
+        'std_dev': std_dev,
         'noise_var': noise_var,
         'err_max_field': err_max_x,
         'err_mean': err_mean,
         'err_var': err_var,
-        'err_max_value': err_max_value
+        'err_max_value': err_max_value,
+        'err_std': err_std
     }
     
     return stats
-
-
 
 def process_file(filepath, temp):
     """Обработка файла с интерактивным выбором границ"""
@@ -195,33 +198,34 @@ def process_file(filepath, temp):
             print(f"❌ Пустой файл или ошибка парсинга: {filepath}")
             return None
         
-        x_data = data[:, 0]  # Field
-        y_data = data[:, 1]  # Integral
+        x_data = data[:, 0]
+        y_data = data[:, 1]
         
         print(f"\n📊 Обработка: {Path(filepath).name} (T = {temp:.2f} K)")
         print(f"   Точек данных: {len(x_data)}")
-        print(f"   Диапазон Field: {x_data.min():.4f} - {x_data.max():.4f}")
-        print(f"   Max Integral: {y_data.max():.2f}")
+        print(f"   Диапазон поля: {x_data.min():.4f} – {x_data.max():.4f} Тл")
+        print(f"   Max сигнала: {y_data.max():.2f}")
         
-        # Интерактивный выбор границ
         bounds = interactive_noise_selection(x_data, y_data, Path(filepath).name)
         
-        # Визуализация обрезанной области
         plt.figure(figsize=(12, 6))
         plt.plot(x_data, y_data, 'b-', linewidth=2, label='Исходные данные')
         plt.axvspan(x_data.min(), bounds[0], color='r', alpha=0.2, label='Левый шум')
         plt.axvspan(bounds[1], x_data.max(), color='m', alpha=0.2, label='Правый шум')
         plt.axvline(bounds[0], color='r', linestyle='--', linewidth=2)
         plt.axvline(bounds[1], color='m', linestyle='--', linewidth=2)
-        plt.title(f"{Path(filepath).name} - Обрезанная область ({bounds[0]:.4f} - {bounds[1]:.4f})")
-        plt.xlabel('Field (T)')
-        plt.ylabel('Integral')
-        plt.legend()
+        
+        plt.title(rf"{Path(filepath).name} — Обрезанная область "
+                  rf"({bounds[0]:.4f} – {bounds[1]:.4f} Тл)",
+                  fontsize=11)
+        
+        plt.xlabel(r'Поле $B$, Тл')
+        plt.ylabel(r'Нормированный сигнал (усл. ед.)')
+        plt.legend(fontsize=9)
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
         
-        # Разделение данных
         peak_mask = (x_data >= bounds[0]) & (x_data <= bounds[1])
         noise_mask = ~peak_mask
         
@@ -233,10 +237,8 @@ def process_file(filepath, temp):
             print(f"⚠️  Нет данных в выбранной области!")
             return None
         
-        # Расчет дисперсии шума
         noise_var = np.mean(noise_y ** 2) if len(noise_y) > 0 else 0
         
-        # Расчет статистик для пика
         stats = calculate_stats(peak_x, peak_y, noise_var)
         if stats:
             stats['temperature'] = temp
@@ -249,13 +251,9 @@ def process_file(filepath, temp):
         traceback.print_exc()
         return None
 
-
-
 # ============ ОСНОВНОЙ КОД ============
 
-
 if __name__ == "__main__":
-    # Получаем список файлов
     txt_files = sorted([f for f in os.listdir(DATA_DIR) if f.endswith('.txt')])
     
     if not txt_files:
@@ -279,50 +277,69 @@ if __name__ == "__main__":
         if stats:
             all_stats.append(stats)
     
-    # Построение финальных графиков
     if all_stats:
         print(f"\n{'='*50}")
         print(f"✅ Обработано {len(all_stats)} файлов")
         
-        # Сортируем по температуре
         all_stats.sort(key=lambda s: s['temperature'])
         
-        # Извлекаем данные для графиков
         temps = np.array([s['temperature'] for s in all_stats])
         mean_fields = np.array([s['mean_field'] for s in all_stats])
         err_means = np.array([s['err_mean'] for s in all_stats])
-        variances = np.array([s['variance'] for s in all_stats])
-        err_vars = np.array([s['err_var'] for s in all_stats])
+        std_devs = np.array([s['std_dev'] for s in all_stats])
+        err_stds = np.array([s['err_std'] for s in all_stats])
         
-        # График 1: Средняя позиция (Mean Field) vs Температура
-        plt.figure(figsize=(12, 6))
-        plt.errorbar(temps, mean_fields, yerr=err_means, fmt='o-', color='tab:blue', 
-                     linewidth=2, markersize=8, capsize=5, capthick=2, label='Mean Field')
-        plt.xlabel('Температура (K)', fontsize=12)
-        plt.ylabel('Mean Field (T)', fontsize=12)
-        plt.title('Средняя позиция пика vs Температура', fontsize=14, fontweight='bold')
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=11)
+        # === ГРАФИК 1: Средняя позиция пика ===
+        plt.figure(figsize=(10, 6))
+        plt.errorbar(temps, mean_fields, yerr=err_means, 
+                     marker='o', linestyle='-', color='tab:blue',
+                     linewidth=2, markersize=6, capsize=4, capthick=1.5, 
+                     label=r'$\langle B \rangle$')
+        
+        plt.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5, 
+                    label=r'$T_{\mathrm{N1}} = %.2f$~К' % T_N1)
+        plt.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5, 
+                    label=r'$T_{\mathrm{N2}} = %.2f$~К' % T_N2)
+        
+        plt.xlabel(r'Температура $T$, К', fontsize=11)
+        plt.ylabel(r'Среднее поле $\langle B \rangle$, Тл', fontsize=11)
+        
+        plt.title(EXPERIMENT_LABEL + '\n' + r'Среднее положение пика от температуры', 
+                  fontsize=11, pad=15)
+        
+        plt.legend(fontsize=10, loc='best')
+        plt.grid(True, linestyle='--', alpha=0.4)
         plt.tight_layout()
         plt.show()
         
-        # График 2: Дисперсия (Variance) vs Температура
-        plt.figure(figsize=(12, 6))
-        plt.errorbar(temps, variances, yerr=err_vars, fmt='s-', color='tab:red', 
-                     linewidth=2, markersize=8, capsize=5, capthick=2, label='Variance')
-        plt.xlabel('Температура (K)', fontsize=12)
-        plt.ylabel('Variance (T²)', fontsize=12)
-        plt.title('Дисперсия пика vs Температура', fontsize=14, fontweight='bold')
-        plt.grid(True, alpha=0.3)
-        plt.legend(fontsize=11)
+        # === ГРАФИК 2: Стандартное отклонение ===
+        plt.figure(figsize=(10, 6))
+        plt.errorbar(temps, std_devs, yerr=err_stds, 
+                     marker='s', linestyle='-', color='tab:red',
+                     linewidth=2, markersize=6, capsize=4, capthick=1.5, 
+                     label=r'$\sigma_B$')
+        
+        plt.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5, 
+                    label=r'$T_{\mathrm{N1}} = %.2f$~К' % T_N1)
+        plt.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5, 
+                    label=r'$T_{\mathrm{N2}} = %.2f$~К' % T_N2)
+        
+        plt.xlabel(r'Температура $T$, К', fontsize=11)
+        plt.ylabel(r'Стандартное отклонение $\sigma_B$, Тл', fontsize=11)
+        
+        plt.title(EXPERIMENT_LABEL + '\n' + r'Ширина распределения локальных полей', 
+                  fontsize=11, pad=15)
+        
+        plt.legend(fontsize=10, loc='best')
+        plt.grid(True, linestyle='--', alpha=0.4)
         plt.tight_layout()
         plt.show()
         
-        # Вывод финальной информации
-        print(f"\n📊 Статистика результатов:")
-        print(f"   Температурный диапазон: {temps.min():.2f} - {temps.max():.2f} K")
-        print(f"   Mean Field: {mean_fields.mean():.6f} ± {mean_fields.std():.6f} T")
-        print(f"   Variance: {variances.mean():.6e} ± {variances.std():.6e} T²")
+        # === ИСПРАВЛЕНО: используем rf-строки для формул с переменными ===
+        print("\n📊 Статистика результатов:")
+        print(f"   Температурный диапазон: {temps.min():.2f} – {temps.max():.2f} К")
+        print(rf"   $\langle B \rangle$: {mean_fields.mean():.6f} ± {mean_fields.std():.6f} Тл")
+        print(rf"   $\sigma_B$: {std_devs.mean():.6f} ± {std_devs.std():.6f} Тл")
     else:
         print("❌ Не удалось обработать ни один файл")
 

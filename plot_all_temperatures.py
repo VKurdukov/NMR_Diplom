@@ -7,7 +7,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.ticker import AutoMinorLocator
 
 # Папка с файлами вида *_f_Bloc.txt
-folder = Path("final_data")
+folder = Path("final_gauss_data")
 
 spectra = []
 
@@ -26,12 +26,13 @@ for file in folder.glob("*_f_Bloc.txt"):
         B_loc = data[:, 0]
         f = data[:, 1]
 
-        integral = np.trapezoid(f, B_loc)
-        if integral <= 0:
-            print(f"Пропущен {file.name}: интеграл = {integral:.2e} ≤ 0")
+        # Нормировка на первое значение в f (f[0])
+        if f[0] != 0:
+            f_norm = f / f[0]  # <- изменённая строка
+        else:
+            print(f"Пропущен {file.name}: первое значение f = 0")
             continue
 
-        f_norm = f / integral
         spectra.append((temp, B_loc, f_norm))
     except Exception as e:
         print(f"Ошибка при загрузке {file.name}: {e}")
@@ -45,12 +46,12 @@ spectra.sort(key=lambda x: x[0])
 temps = [t for t, _, _ in spectra]
 
 # Цветовая палитра: синий → красный
-cmap = LinearSegmentedColormap.from_list("blue_red", ["#C6DCE9", "#FF0000"])
+cmap = LinearSegmentedColormap.from_list("blue_red", ["#00446C", "#FF0000"])
 norm = Normalize(vmin=min(temps), vmax=max(temps))
 colors = [cmap(norm(t)) for t in temps]
 
 # === ПАРАМЕТР СДВИГА ПО ТЕМПЕРАТУРЕ ===
-offset_per_K = 20  # ← настрой это число под свои данные
+offset_per_K = 0  # ← настрой это число под свои данные
 
 # Подготовка данных для автоматического ylim
 shifted_maxes = []
@@ -66,11 +67,11 @@ for (temp, B_loc, f_norm), color in zip(spectra, colors):
     ax.plot(B_loc, f_shifted, color=color, lw=2.2)
 
 # Оформление
-ax.set_xlim(0, 0.25)
+ax.set_xlim(0, 0.20)
 ax.set_ylim(bottom=0, top=y_max)
-ax.set_xlabel(r"$B_{\mathrm{loc}}$ (T)", fontsize=13)
-ax.set_ylabel(r"$f_{\mathrm{norm}}(B_{\mathrm{loc}}) + \mathrm{сдвиг}(T)$", fontsize=13)
-ax.set_title("Нормированные распределения локальных полей (со сдвигом по T)", fontsize=15, pad=15)
+ax.set_xlabel(r"$B_{\mathrm{loc}}$ (Tл)", fontsize=13)
+ax.set_ylabel("Интенсивность спектра от поля (усл.ед., норм. к нач. знач.)", fontsize=13)
+ax.set_title("Распределения локальных полей, нормированные на начальное значение", fontsize=15, pad=15)
 
 # Стиль осей
 ax.spines['top'].set_visible(False)
