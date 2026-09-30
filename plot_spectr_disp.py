@@ -3,9 +3,22 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Настройки шрифтов и LaTeX для корректного отображения формул
+# =============================================================================
+# НАСТРОЙКИ ШРИФТОВ И МАСШТАБИРОВАНИЯ
+# =============================================================================
+FONT_SCALE = 1.5
+
 plt.rcParams['mathtext.fontset'] = 'dejavusans'
 plt.rcParams['font.family'] = 'DejaVu Sans'
+
+plt.rcParams.update({
+    'font.size': 10 * FONT_SCALE,
+    'axes.titlesize': 12 * FONT_SCALE,
+    'axes.labelsize': 11 * FONT_SCALE,
+    'xtick.labelsize': 10 * FONT_SCALE,
+    'ytick.labelsize': 10 * FONT_SCALE,
+    'legend.fontsize': 10 * FONT_SCALE,
+})
 
 # Температуры Нееля
 T_N2 = 9.95  # K, верхний переход
@@ -51,17 +64,13 @@ for filename in txt_files:
     x_vals = np.array(x_vals)
     y_vals = np.array(y_vals)
 
-    # Нормировка на максимальное значение
     y_norm = y_vals / np.max(y_vals)
 
-    # Центр масс (среднее взвешенное локального поля)
     centroid = np.sum(x_vals * y_norm) / np.sum(y_norm)
 
-    # Индекс максимального значения
     max_idx = np.argmax(y_norm)
     x_max = x_vals[max_idx]
 
-    # Стандартное отклонение от точки с максимальным значением (ширина распределения)
     std_max = np.sqrt(np.sum(y_norm * (x_vals - x_max)**2) / np.sum(y_norm))
 
     temps.append(temp)
@@ -78,57 +87,64 @@ temps = temps[sort_idx]
 centroid_list = centroid_list[sort_idx]
 std_max_list = std_max_list[sort_idx]
 
-# Настройки оси X: шаг 1 К
-xticks = np.arange(np.floor(temps.min()), np.ceil(temps.max()) + 1, 1)
-xtick_labels = ['%d К' % t for t in xticks]
+# =============================================================================
+# НАСТРОЙКИ ОСИ X: ШАГ 2 ГРАДУСА
+# =============================================================================
+xticks = np.arange(np.floor(temps.min()), np.ceil(temps.max()) + 1, 2)
+xtick_labels = ['%d' % int(t) for t in xticks]
 
 # =============================================================================
 # График 1: Среднее локальное поле от температуры
 # =============================================================================
-plt.figure(figsize=(9, 6))
+fig1, ax1 = plt.subplots(figsize=(9, 6))
 
-plt.plot(temps, centroid_list, 'o-', color='tab:blue', linewidth=2, markersize=6, label=r'$\langle B_{\mathrm{loc}} \rangle$')
+ax1.plot(temps, centroid_list, 'o-', color='tab:blue', linewidth=2, markersize=6)
 
-# Вертикальные линии с корректным форматированием индексов
-plt.axvline(x=T_N1, color='red', linestyle='--', linewidth=1.5, label=r'$T_{\mathrm{N1}}$ = %.2f К' % T_N1)
-plt.axvline(x=T_N2, color='purple', linestyle='--', linewidth=1.5, label=r'$T_{\mathrm{N2}}$ = %.2f К' % T_N2)
+ax1.axvline(x=T_N1, color='red', linestyle='--', linewidth=1.5)
+ax1.axvline(x=T_N2, color='purple', linestyle='--', linewidth=1.5)
 
-# === ИСПРАВЛЕНО: подписи осей для распределения локальных полей ===
-plt.xlabel('Температура $T$, К', fontsize=11)
-plt.ylabel(r'Среднее локальное поле $\langle B_{\mathrm{loc}} \rangle$, Тл', fontsize=11)
+# Подписи TN1 и TN2 рядом с вертикальными линиями (в координатах осей)
+ax1.text(T_N1, 0.95, r'$T_{N1}$', color='red', fontsize=12 * FONT_SCALE,
+         ha='right', va='top', transform=ax1.get_xaxis_transform())
+ax1.text(T_N2, 0.95, r'$T_{N2}$', color='purple', fontsize=12 * FONT_SCALE,
+         ha='left', va='top', transform=ax1.get_xaxis_transform())
 
-# === ИСПРАВЛЕНО: только заголовок над графиком, без общего лейбла ===
-plt.title('Центр масс распределения полей от температуры', fontsize=12, pad=15)
+ax1.set_xlabel('Температура $T$, К')
+ax1.set_ylabel(r'Среднее локальное поле $\langle B_{\mathrm{loc}} \rangle$, Тл')
 
-plt.xticks(xticks, xtick_labels, fontsize=9)
-plt.legend(fontsize=10, loc='best', framealpha=0.9)
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.tight_layout()
+ax1.set_xticks(xticks)
+ax1.set_xticklabels(xtick_labels)
+ax1.grid(True, linestyle='--', alpha=0.5)
 
+fig1.tight_layout()
+plt.savefig('fig4_2a_spectral_mean.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # =============================================================================
 # График 2: Ширина распределения локальных полей от температуры
 # =============================================================================
-plt.figure(figsize=(9, 6))
+fig2, ax2 = plt.subplots(figsize=(9, 6))
 
-# === ИСПРАВЛЕНО: ΔB — ширина распределения, а не дисперсия ===
-plt.plot(temps, std_max_list, 's-', color='tab:red', linewidth=2, markersize=6, label=r'$\Delta B$')
+ax2.plot(temps, std_max_list, 's-', color='tab:red', linewidth=2, markersize=6)
 
-plt.axvline(x=T_N1, color='red', linestyle='--', linewidth=1.5, label=r'$T_{\mathrm{N1}}$ = %.2f К' % T_N1)
-plt.axvline(x=T_N2, color='purple', linestyle='--', linewidth=1.5, label=r'$T_{\mathrm{N2}}$ = %.2f К' % T_N2)
+ax2.axvline(x=T_N1, color='red', linestyle='--', linewidth=1.5)
+ax2.axvline(x=T_N2, color='purple', linestyle='--', linewidth=1.5)
 
-plt.xlabel('Температура $T$, К', fontsize=11)
-# === ИСПРАВЛЕНО: "Ширина", а не "Дисперсия"; ΔB вместо σ_B ===
-plt.ylabel(r'Ширина распределения $\Delta B$, Тл', fontsize=11)
+# Подписи TN1 и TN2 рядом с вертикальными линиями
+ax2.text(T_N1, 0.95, r'$T_{N1}$', color='red', fontsize=12 * FONT_SCALE,
+         ha='right', va='top', transform=ax2.get_xaxis_transform())
+ax2.text(T_N2, 0.95, r'$T_{N2}$', color='purple', fontsize=12 * FONT_SCALE,
+         ha='left', va='top', transform=ax2.get_xaxis_transform())
 
-plt.title('Дисперсия распределения локальных полей от температуры', fontsize=12, pad=15)
+ax2.set_xlabel('Температура $T$, К')
+ax2.set_ylabel(r'Ширина распределения $\Delta B$, Тл')
 
-plt.xticks(xticks, xtick_labels, fontsize=9)
-plt.legend(fontsize=10, loc='best', framealpha=0.9)
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.tight_layout()
+ax2.set_xticks(xticks)
+ax2.set_xticklabels(xtick_labels)
+ax2.grid(True, linestyle='--', alpha=0.5)
 
+fig2.tight_layout()
+plt.savefig('fig4_2b_spectral_std.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-print("✅ Готово! Построено 2 графика.")
+print("✅ Готово! Сохранено: fig4_2a_spectral_mean.png и fig4_2b_spectral_std.png")

@@ -5,7 +5,7 @@ from scipy.optimize import lsq_linear
 import os
 
 # === Параметры ===
-filename = r"test_data\FieldSweep 20.00K.txt"
+filename = r"test_data\FieldSweep 12.00K.txt"
 BL = 0.72525
 
 Bloc_min = 1e-6
@@ -14,7 +14,7 @@ num_Bloc = 70
 
 use_nonneg = True
 penalty_order = 1
-auto_lambda = False
+auto_lambda = True
 lambda_range = np.logspace(-10, 10, 1000)
 
 

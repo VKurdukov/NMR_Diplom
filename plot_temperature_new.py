@@ -2,24 +2,36 @@ import os
 import re
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path  # ✅ ИСПРАВЛЕНО: был plt, должно быть Path
+from pathlib import Path
 
-# Настройки шрифтов и LaTeX для корректного отображения формул
+# =============================================================================
+# 🔤 НАСТРОЙКИ ШРИФТОВ И МАСШТАБИРОВАНИЯ
+# =============================================================================
+FONT_SCALE = 1.5
+
 plt.rcParams['mathtext.fontset'] = 'dejavusans'
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
+plt.rcParams.update({
+    'font.size': 10 * FONT_SCALE,
+    'axes.titlesize': 10 * FONT_SCALE,
+    'axes.labelsize': 10 * FONT_SCALE,
+    'xtick.labelsize': 10 * FONT_SCALE,
+    'ytick.labelsize': 10 * FONT_SCALE,
+    'legend.fontsize': 10 * FONT_SCALE,
+    'figure.titlesize': 10 * FONT_SCALE
+})
+
 # ============ КОНФИГУРАЦИЯ ============
-DATA_DIR = "test_data"  # Папка с данными
+DATA_DIR = "test_data"
 T_N2 = 9.95  # K, верхний переход
 T_N1 = 8.17  # K, нижний переход
 
-# Параметры эксперимента для подписей
 EXPERIMENT_LABEL = r'ЯМР $\mathrm{LiCuFe_2(VO_4)_3}$ на ядрах ${}^7\mathrm{Li}$'
 
 # ============ ФУНКЦИИ ============
 
 def extract_temperature(filename: str):
-    """Извлекает температуру из названия файла (например, FieldSweep 9.00K.txt → 9.00)"""
     try:
         match = re.search(r'(\d+[\.,]?\d*)K', filename, re.IGNORECASE)
         return float(match.group(1).replace(',', '.')) if match else None
@@ -28,23 +40,17 @@ def extract_temperature(filename: str):
         return None
 
 def read_data(filepath):
-    """
-    Чтение данных из файла FieldSweep.
-    Автоматически определяет начало данных (после заголовка).
-    """
     data = []
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # Ищем строку с заголовком "Field" — данные начинаются после неё
         data_start = 0
         for i, line in enumerate(lines):
             if line.strip().startswith('Field') and 'Integral' in line:
                 data_start = i + 1
                 break
         
-        # Парсим данные
         for line in lines[data_start:]:
             line = line.strip().replace(',', '.')
             if not line:
@@ -53,8 +59,8 @@ def read_data(filepath):
             parts = line.split()
             if len(parts) >= 2:
                 try:
-                    field = float(parts[0])      # Field (T или кОе)
-                    integral = float(parts[1])   # Integral
+                    field = float(parts[0])
+                    integral = float(parts[1])
                     data.append((field, integral))
                 except ValueError:
                     continue
@@ -65,13 +71,12 @@ def read_data(filepath):
     return np.array(data) if data else np.array([])
 
 def interactive_noise_selection(x_data, y_data, filename):
-    """Интерактивный выбор границ сигнала для обрезки"""
     plt.figure(figsize=(12, 6))
     plt.plot(x_data, y_data, 'b-', linewidth=2, label='Данные')
     
     plt.title(rf"Выбор границ сигнала ({filename}):\n"
               r"ЛКМ — левая граница | ПКМ — правая граница | Enter — подтвердить",
-              fontsize=10)
+              fontsize=int(10 * FONT_SCALE))
     
     plt.xlabel(r'Поле $B$, Тл')
     plt.ylabel(r'Нормированный сигнал (усл. ед.)')
@@ -82,11 +87,11 @@ def interactive_noise_selection(x_data, y_data, filename):
     def on_click(event):
         if event.inaxes != plt.gca():
             return
-        if event.button == 1:  # Левая кнопка - левая граница
+        if event.button == 1:
             selected_points.append(event.xdata)
             plt.axvline(event.xdata, color='r', linestyle='--', alpha=0.7, linewidth=2)
             print(f"✓ Левая граница: {event.xdata:.4f}")
-        elif event.button == 3:  # Правая кнопка - правая граница
+        elif event.button == 3:
             selected_points.append(event.xdata)
             plt.axvline(event.xdata, color='m', linestyle='--', alpha=0.7, linewidth=2)
             print(f"✓ Правая граница: {event.xdata:.4f}")
@@ -114,7 +119,6 @@ def interactive_noise_selection(x_data, y_data, filename):
             return [x_min + 0.2 * (x_max - x_min), x_min + 0.8 * (x_max - x_min)]
 
 def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
-    """Оценивает погрешность дисперсии методом конечных разностей."""
     weights = np.abs(y_values)
     if np.sum(weights) == 0:
         return 0
@@ -122,7 +126,6 @@ def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
     mean_nom = np.average(x, weights=weights)
     delta = perturbation_fraction * np.max(np.abs(y_values))
     
-    # Сдвиг вниз
     y_low = np.clip(y_values - delta, 0, None)
     weights_low = np.abs(y_low)
     if np.sum(weights_low) > 0:
@@ -131,7 +134,6 @@ def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
     else:
         var_low = 0
     
-    # Сдвиг вверх
     y_high = y_values + delta
     weights_high = np.abs(y_high)
     mean_high = np.average(x, weights=weights_high)
@@ -141,7 +143,6 @@ def calculate_variance_error(x, y_values, perturbation_fraction=0.05):
     return err_var
 
 def calculate_std_error(var, err_var):
-    """Оценивает ошибку корня из дисперсии через метод переноса ошибок."""
     if var <= 0:
         return 0
     std = np.sqrt(var)
@@ -150,7 +151,6 @@ def calculate_std_error(var, err_var):
     return abs(1 / (2 * std)) * err_var
 
 def calculate_stats(x_data, y_data, noise_var):
-    """Расчет статистик с погрешностями"""
     weights = np.abs(y_data)
     sum_weights = np.sum(weights)
     
@@ -191,7 +191,6 @@ def calculate_stats(x_data, y_data, noise_var):
     return stats
 
 def process_file(filepath, temp):
-    """Обработка файла с интерактивным выбором границ"""
     try:
         data = read_data(filepath)
         if data.size == 0:
@@ -217,11 +216,11 @@ def process_file(filepath, temp):
         
         plt.title(rf"{Path(filepath).name} — Обрезанная область "
                   rf"({bounds[0]:.4f} – {bounds[1]:.4f} Тл)",
-                  fontsize=11)
+                  fontsize=int(11 * FONT_SCALE))
         
         plt.xlabel(r'Поле $B$, Тл')
         plt.ylabel(r'Нормированный сигнал (усл. ед.)')
-        plt.legend(fontsize=9)
+        plt.legend(fontsize=int(9 * FONT_SCALE))
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.show()
@@ -289,53 +288,62 @@ if __name__ == "__main__":
         std_devs = np.array([s['std_dev'] for s in all_stats])
         err_stds = np.array([s['err_std'] for s in all_stats])
         
-        # === ГРАФИК 1: Средняя позиция пика ===
-        plt.figure(figsize=(10, 6))
-        plt.errorbar(temps, mean_fields, yerr=err_means, 
+        # =====================================================================
+        # ГРАФИК 1: Средняя позиция пика (с подписями TN1/TN2 на графике)
+        # =====================================================================
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        
+        ax1.errorbar(temps, mean_fields, yerr=err_means, 
                      marker='o', linestyle='-', color='tab:blue',
-                     linewidth=2, markersize=6, capsize=4, capthick=1.5, 
-                     label=r'$\langle B \rangle$')
+                     linewidth=2, markersize=6, capsize=4, capthick=1.5)
         
-        plt.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5, 
-                    label=r'$T_{\mathrm{N1}} = %.2f$~К' % T_N1)
-        plt.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5, 
-                    label=r'$T_{\mathrm{N2}} = %.2f$~К' % T_N2)
+        ax1.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5)
+        ax1.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5)
         
-        plt.xlabel(r'Температура $T$, К', fontsize=11)
-        plt.ylabel(r'Среднее поле $\langle B \rangle$, Тл', fontsize=11)
+        # Подписи TN1 и TN2 рядом с линиями
+        ax1.text(T_N1, 0.05, r'$T_{N1}$', color='orange', fontsize=12 * FONT_SCALE,
+                 ha='right', va='top', transform=ax1.get_xaxis_transform())
+        ax1.text(T_N2, 0.05, r'$T_{N2}$', color='olive', fontsize=12 * FONT_SCALE,
+                 ha='left', va='top', transform=ax1.get_xaxis_transform())
         
-        plt.title(EXPERIMENT_LABEL + '\n' + r'Среднее положение пика от температуры', 
-                  fontsize=11, pad=15)
+        ax1.set_xlabel(r'Температура $T$, К')
+        ax1.set_ylabel(r'Среднее поле $\langle B \rangle$, Тл')
+        ax1.set_title(EXPERIMENT_LABEL + '\n' + r'Среднее положение пика от температуры', 
+                      fontsize=int(11 * FONT_SCALE), pad=15)
         
-        plt.legend(fontsize=10, loc='best')
-        plt.grid(True, linestyle='--', alpha=0.4)
-        plt.tight_layout()
+        ax1.grid(True, linestyle='--', alpha=0.4)
+        fig1.tight_layout()
+        plt.savefig('fig_spectral_mean.png', dpi=300, bbox_inches='tight')
         plt.show()
         
-        # === ГРАФИК 2: Стандартное отклонение ===
-        plt.figure(figsize=(10, 6))
-        plt.errorbar(temps, std_devs, yerr=err_stds, 
+        # =====================================================================
+        # ГРАФИК 2: Стандартное отклонение (с подписями TN1/TN2 на графике)
+        # =====================================================================
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        
+        ax2.errorbar(temps, std_devs, yerr=err_stds, 
                      marker='s', linestyle='-', color='tab:red',
-                     linewidth=2, markersize=6, capsize=4, capthick=1.5, 
-                     label=r'$\sigma_B$')
+                     linewidth=2, markersize=6, capsize=4, capthick=1.5)
         
-        plt.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5, 
-                    label=r'$T_{\mathrm{N1}} = %.2f$~К' % T_N1)
-        plt.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5, 
-                    label=r'$T_{\mathrm{N2}} = %.2f$~К' % T_N2)
+        ax2.axvline(T_N1, color='orange', linestyle='--', linewidth=1.5)
+        ax2.axvline(T_N2, color='olive', linestyle='--', linewidth=1.5)
         
-        plt.xlabel(r'Температура $T$, К', fontsize=11)
-        plt.ylabel(r'Стандартное отклонение $\sigma_B$, Тл', fontsize=11)
+        # Подписи TN1 и TN2 рядом с линиями
+        ax2.text(T_N1, 0.95, r'$T_{N1}$', color='orange', fontsize=12 * FONT_SCALE,
+                 ha='right', va='top', transform=ax2.get_xaxis_transform())
+        ax2.text(T_N2, 0.95, r'$T_{N2}$', color='olive', fontsize=12 * FONT_SCALE,
+                 ha='left', va='top', transform=ax2.get_xaxis_transform())
         
-        plt.title(EXPERIMENT_LABEL + '\n' + r'Ширина распределения локальных полей', 
-                  fontsize=11, pad=15)
+        ax2.set_xlabel(r'Температура $T$, К')
+        ax2.set_ylabel(r'Стандартное отклонение $\sigma_B$, Тл')
+        ax2.set_title(EXPERIMENT_LABEL + '\n' + r'Ширина распределения локальных полей', 
+                      fontsize=int(11 * FONT_SCALE), pad=15)
         
-        plt.legend(fontsize=10, loc='best')
-        plt.grid(True, linestyle='--', alpha=0.4)
-        plt.tight_layout()
+        ax2.grid(True, linestyle='--', alpha=0.4)
+        fig2.tight_layout()
+        plt.savefig('fig_spectral_std.png', dpi=300, bbox_inches='tight')
         plt.show()
         
-        # === ИСПРАВЛЕНО: используем rf-строки для формул с переменными ===
         print("\n📊 Статистика результатов:")
         print(f"   Температурный диапазон: {temps.min():.2f} – {temps.max():.2f} К")
         print(rf"   $\langle B \rangle$: {mean_fields.mean():.6f} ± {mean_fields.std():.6f} Тл")
@@ -343,4 +351,4 @@ if __name__ == "__main__":
     else:
         print("❌ Не удалось обработать ни один файл")
 
-print("\n✅ Готово!")
+print("\n✅ Готово! Сохранено: fig_spectral_mean.png и fig_spectral_std.png")

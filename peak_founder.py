@@ -4,15 +4,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-# Настройки шрифтов и LaTeX для корректного отображения формул
+# =============================================================================
+# 🔤 НАСТРОЙКИ ШРИФТОВ И МАСШТАБИРОВАНИЯ
+# =============================================================================
+FONT_SCALE = 1.5  # Коэффициент увеличения текста (2.0 = в 2 раза)
+
 plt.rcParams['mathtext.fontset'] = 'dejavusans'
 plt.rcParams['font.family'] = 'DejaVu Sans'
+
+# Применяем масштаб ко всем базовым элементам текста
+plt.rcParams.update({
+    'font.size': 10 * FONT_SCALE,          # 20
+    'axes.titlesize': 12 * FONT_SCALE,     # 24
+    'axes.labelsize': 11 * FONT_SCALE,     # 22
+    'xtick.labelsize': 10 * FONT_SCALE,    # 20
+    'ytick.labelsize': 10 * FONT_SCALE,    # 20
+    'legend.fontsize': 10 * FONT_SCALE,    # 20
+})
 
 # Температуры Нееля
 T_N2 = 9.95  # K, верхний переход
 T_N1 = 8.17  # K, нижний переход
 
-folder_path = r"C:\Users\Владимир\Desktop\NMR_Diplom\final_data"
+folder_path = r"C:\Users\Владимир\Desktop\NMR_Diplom\final_gauss_data"
 
 txt_files = [f for f in os.listdir(folder_path) if f.endswith('.txt')]
 
@@ -77,7 +91,6 @@ temps = np.array(temps)
 first_peak_x = np.array(first_peak_x)
 second_peak_x = np.array(second_peak_x)
 
-# Сортируем одновременно все массивы по температуре
 sort_idx = np.argsort(temps)
 temps = temps[sort_idx]
 first_peak_x = first_peak_x[sort_idx]
@@ -86,31 +99,28 @@ second_peak_x = second_peak_x[sort_idx]
 # =============================================================================
 # График: Зависимость положения пиков от температуры
 # =============================================================================
-plt.figure(figsize=(9, 6))
+plt.figure(figsize=(9, 6))  # Размер фигуры не изменён
 
-# === ИСПРАВЛЕНО: убрал Bp1, простые подписи ===
 plt.plot(temps, first_peak_x, '-', label='Первый пик', 
          color='tab:blue', linewidth=2)
 plt.plot(temps, second_peak_x, '-', label='Второй пик', 
          color='tab:orange', linewidth=2)
 
-# Отмечаем температуры Нееля — ИСПРАВЛЕНО: единицы вне формулы
 plt.axvline(x=T_N1, color='red', linestyle='--', linewidth=2, 
-            label=r'$T_{\mathrm{N1}}$ = %.2f К' % T_N1)
+            label=r'$T_{\mathrm{N1}} = %.2f$ К' % T_N1)
 plt.axvline(x=T_N2, color='purple', linestyle='--', linewidth=2, 
-            label=r'$T_{\mathrm{N2}}$ = %.2f К' % T_N2)
+            label=r'$T_{\mathrm{N2}} = %.2f$ К' % T_N2)
 
-# 🎯 Устанавливаем шаг 1 K по оси X — ИСПРАВЛЕНО: обычные пробелы
+# ✅ Убраны "К" из меток, fontsize управляется глобально через rcParams
 xticks = np.arange(np.floor(temps.min()), np.ceil(temps.max()) + 1, 1)
-plt.xticks(xticks, ['%d К' % t for t in xticks], fontsize=9)
+plt.xticks(xticks, ['%d' % int(t) for t in xticks])
 
-# === Подписи осей ===
-plt.xlabel('Температура T, К', fontsize=11)
-plt.ylabel('Положение пика, Тл', fontsize=11)
+# ✅ Убраны явные fontsize → теперь все подписи автоматически ×2
+plt.xlabel('Температура $T$, К')
+plt.ylabel('Положение пика, Тл')
+plt.title('Зависимость положения пиков от температуры', pad=15)
 
-plt.title('Зависимость положения пиков от температуры', fontsize=12, pad=15)
-
-plt.legend(fontsize=10, loc='best', framealpha=0.9)
+plt.legend(loc='best', framealpha=0.9)
 plt.grid(True, linestyle='--', alpha=0.5)
 plt.tight_layout()
 
