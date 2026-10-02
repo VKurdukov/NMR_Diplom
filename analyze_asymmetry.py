@@ -4,7 +4,7 @@ import re
 from scipy.optimize import lsq_linear
 
 
-filename = r"C:\Users\Владимир\Desktop\Diplom\my_distribution_gB.txt"
+filename = r"C:\Users\Пользователь\Desktop\Projects\NMR_Diplom\my_distribution_gB.txt"
 BL = 5
 Bloc_min = 0.01
 Bloc_max = 3

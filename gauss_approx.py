@@ -6,7 +6,7 @@ def gaussian(x, A, x0, sigma):
     return A * np.exp(-((x - x0)**2) / (2 * sigma**2))
 
 # Load data from file
-filename = r"C:\Users\Владимир\Desktop\NMR_Diplom\final_data\25.00K_f_Bloc.txt"
+filename = r"C:\Users\Пользователь\Desktop\Projects\NMR_Diplom\final_data\25.00K_f_Bloc.txt"
 data = np.loadtxt(filename, skiprows=3)  # Skip header rows
 
 x = data[:, 0]

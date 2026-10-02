@@ -28,7 +28,7 @@ T_N1_init = 8.17
 # Максимальная температура для анализа
 T_MAX = 15.0
 
-folder_path = r"C:\Users\Владимир\Desktop\NMR_Diplom\bootstrap_results"
+folder_path = r"C:\Users\Пользователь\Desktop\Projects\NMR_Diplom\bootstrap_results"
 
 txt_files = [f for f in os.listdir(folder_path) if f.endswith('.txt')]
 
